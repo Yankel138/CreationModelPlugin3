@@ -26,14 +26,12 @@ namespace CreationModelPlugin
 
             List<Wall> walls = AddWalls(doc, width, depth, level1, level2);
             AddDoor(doc, level1, walls[0]);
-            AddWindow(doc, level1, walls[1]);
-            AddWindow(doc, level1, walls[2]);
-            AddWindow(doc, level1, walls[3]);
-
+            AddWindows(doc, level1, walls);
+            
             return Result.Succeeded;
         }
 
-        private void AddWindow(Document doc, Level level1, Wall wall)
+        private void AddWindows(Document doc, Level level1, List<Wall> walls)
         {
             FamilySymbol windowType = new FilteredElementCollector(doc)
                 .OfClass(typeof(FamilySymbol))
@@ -43,21 +41,26 @@ namespace CreationModelPlugin
                 .Where(x => x.FamilyName.Equals("M_Window-Double-Hung"))
                 .FirstOrDefault();
 
-            
-            XYZ point = GetElementCenter(wall);
+
+
             Transaction ts = new Transaction(doc, "Создание окна");
             ts.Start();
 
             if (!windowType.IsActive)
                 windowType.Activate();
+            for (int i = 1; i < 4; i++)
+            {
+                Wall wall = walls[i];
+                XYZ point = GetElementCenter(wall);
+                doc.Create.NewFamilyInstance(point, windowType, wall, level1, StructuralType.NonStructural);
+            }
 
-            doc.Create.NewFamilyInstance(point, windowType, wall, level1, StructuralType.NonStructural);
             ts.Commit();
         }
 
         private void AddDoor(Document doc, Level level, Wall wall)
         {
-            
+
             FamilySymbol doorType = new FilteredElementCollector(doc)
                 .OfClass(typeof(FamilySymbol))
                 .OfCategory(BuiltInCategory.OST_Doors)
@@ -76,7 +79,7 @@ namespace CreationModelPlugin
 
             if (!doorType.IsActive)
                 doorType.Activate();
-            
+
             doc.Create.NewFamilyInstance(point, doorType, wall, level, StructuralType.NonStructural);
             ts.Commit();
         }
