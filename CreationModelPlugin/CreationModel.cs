@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Autodesk.Revit.ApplicationServices;
 
 namespace CreationModelPlugin
 {
@@ -27,8 +28,52 @@ namespace CreationModelPlugin
             List<Wall> walls = AddWalls(doc, width, depth, level1, level2);
             AddDoor(doc, level1, walls[0]);
             AddWindows(doc, level1, walls);
-            
+            AddRoof(doc, level2, walls);
+
             return Result.Succeeded;
+        }
+
+        private void AddRoof(Document doc, Level level2, List<Wall> walls)
+        {
+            RoofType roofType = new FilteredElementCollector(doc)
+                .OfClass(typeof(RoofType))
+                .OfType<RoofType>()
+                .Where(x => x.Name.Equals("Generic - 400mm - Filled"))
+                .Where(x => x.FamilyName.Equals("Basic Roof"))
+                .FirstOrDefault();
+
+            double wallWidth = walls[0].Width;
+            double dt = wallWidth / 2;
+
+            List<XYZ> points = new List<XYZ>();
+            points.Add(new XYZ(-dt, -dt, 0));
+            points.Add(new XYZ(dt, -dt, 0));
+            points.Add(new XYZ(dt, dt, 0));
+            points.Add(new XYZ(-dt, dt, 0));
+            points.Add(new XYZ(-dt, -dt, 0));
+
+            Transaction ts = new Transaction(doc, "Создание крыши");
+            ts.Start();
+
+            Application application = doc.Application;
+            CurveArray footprint = application.Create.NewCurveArray();
+            for (int i = 0; i < 4; i++)
+            {
+                LocationCurve curve = walls[i].Location as LocationCurve;
+                XYZ p1 = curve.Curve.GetEndPoint(0);
+                XYZ p2 = curve.Curve.GetEndPoint(1);
+                Line line = Line.CreateBound(p1 + points[i], p2 + points[i + 1]);
+                footprint.Append(line);
+            }
+            ModelCurveArray footPrintToModelCurveMapping = new ModelCurveArray();
+            FootPrintRoof footPrintRoof = doc.Create.NewFootPrintRoof(footprint, level2, roofType, out footPrintToModelCurveMapping);
+            foreach (ModelCurve m in footPrintToModelCurveMapping)
+            {
+                footPrintRoof.set_DefinesSlope(m, true);
+                footPrintRoof.set_SlopeAngle(m, 0.5);
+            }
+            
+            ts.Commit();
         }
 
         private void AddWindows(Document doc, Level level1, List<Wall> walls)
